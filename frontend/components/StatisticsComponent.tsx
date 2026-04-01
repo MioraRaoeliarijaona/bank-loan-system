@@ -1,15 +1,14 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { VictoryBar, VictoryPie, VictoryChart } from 'victory-native';
-import { Colors } from '../constants/theme';
+
+import { Colors } from '@/constants/theme';
+import { PaymentStatsChart } from '@/components/PaymentStatsChart';
 
 interface Statistics {
   total_loans: number;
-  montant_total_payer: number;
-  montant_min_payer: number;
-  montant_max_payer: number;
-  montant_avg_payer: number;
-  montant_total_pret: number;
+  montant_total_payer: number | string;
+  montant_min_payer: number | string;
+  montant_max_payer: number | string;
 }
 
 interface StatisticsComponentProps {
@@ -21,57 +20,13 @@ interface StatisticsComponentProps {
 export const StatisticsComponent: React.FC<StatisticsComponentProps> = ({
   statistics,
   loading,
-  loans,
+  loans: _loans,
 }) => {
-  // Format number to French locale
-  const formatNumber = (num: number) => {
-    return num?.toLocaleString('fr-FR', {
+  const formatNumber = (num: number) =>
+    num?.toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }) || '0.00';
-  };
-
-  // Prepare chart data
-  const chartData = useMemo(() => {
-    if (!statistics) return [];
-    return [
-      {
-        x: 'Total',
-        y: Number(statistics.montant_total_payer) || 0,
-      },
-      {
-        x: 'Min',
-        y: Number(statistics.montant_min_payer) || 0,
-      },
-      {
-        x: 'Max',
-        y: Number(statistics.montant_max_payer) || 0,
-      },
-    ];
-  }, [statistics]);
-
-  const pieChartData = useMemo(() => {
-    if (!statistics || statistics.montant_total_payer === 0) return [];
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1'];
-    
-    return [
-      {
-        x: 'Total',
-        y: Number(statistics.montant_total_payer) || 0,
-        color: colors[0],
-      },
-      {
-        x: 'Moyenne',
-        y: Number(statistics.montant_avg_payer) || 0,
-        color: colors[1],
-      },
-      {
-        x: 'Intervalle',
-        y: (Number(statistics.montant_max_payer) || 0) - (Number(statistics.montant_min_payer) || 0),
-        color: colors[2],
-      },
-    ];
-  }, [statistics]);
 
   if (loading) {
     return (
@@ -90,137 +45,48 @@ export const StatisticsComponent: React.FC<StatisticsComponentProps> = ({
     );
   }
 
+  const paymentStats = {
+    total: Number(statistics.montant_total_payer) || 0,
+    min: Number(statistics.montant_min_payer) || 0,
+    max: Number(statistics.montant_max_payer) || 0,
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Summary Statistics */}
       <View style={styles.summaryContainer}>
-        <Text style={styles.sectionTitle}>Résumé des Statistiques</Text>
+        <Text style={styles.sectionTitle}>Montants à payer</Text>
+        <Text style={styles.sectionSubtitle}>
+          Vue simplifiée avec les trois indicateurs demandés et un histogramme modernisé.
+        </Text>
 
         <View style={styles.statGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Nombre de Prêts</Text>
-            <Text style={styles.statValue}>{statistics.total_loans}</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Montant Total Prêté</Text>
-            <Text style={styles.statValue}>{formatNumber(statistics.montant_total_pret)}</Text>
-            <Text style={styles.statUnit}>DA</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Total à Payer</Text>
+          <View style={[styles.statCard, styles.statCardLarge]}>
+            <Text style={styles.statLabel}>Montant total</Text>
             <Text style={[styles.statValue, styles.totalValue]}>
-              {formatNumber(statistics.montant_total_payer)}
+              {formatNumber(paymentStats.total)}
             </Text>
             <Text style={styles.statUnit}>DA</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Montant Minimal</Text>
+            <Text style={styles.statLabel}>Montant minimal</Text>
             <Text style={[styles.statValue, styles.minValue]}>
-              {formatNumber(statistics.montant_min_payer)}
+              {formatNumber(paymentStats.min)}
             </Text>
             <Text style={styles.statUnit}>DA</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Montant Maximal</Text>
+            <Text style={styles.statLabel}>Montant maximal</Text>
             <Text style={[styles.statValue, styles.maxValue]}>
-              {formatNumber(statistics.montant_max_payer)}
+              {formatNumber(paymentStats.max)}
             </Text>
             <Text style={styles.statUnit}>DA</Text>
           </View>
-
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Montant Moyen</Text>
-            <Text style={styles.statValue}>{formatNumber(statistics.montant_avg_payer)}</Text>
-            <Text style={styles.statUnit}>DA</Text>
-          </View>
         </View>
       </View>
 
-      {/* Bar Chart */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.sectionTitle}>Graphique en Barres</Text>
-        <View style={styles.chartWrapper}>
-          <VictoryChart domainPadding={{ x: 50, y: 50 }}>
-            <VictoryBar
-              data={chartData}
-              x="x"
-              y="y"
-              style={{
-                data: { fill: "#4ECDC4" }
-              }}
-            />
-          </VictoryChart>
-        </View>
-      </View>
-
-      {/* Pie Chart */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.sectionTitle}>Diagramme Circulaire</Text>
-        <View style={styles.chartWrapper}>
-          <VictoryPie
-            data={pieChartData}
-            x="x"
-            y="y"
-            colorScale={pieChartData.map(item => item.color)}
-          />
-        </View>
-      </View>
-
-      {/* Breakdown by Bank */}
-      <View style={styles.breakdownContainer}>
-        <Text style={styles.sectionTitle}>Répartition par Banque</Text>
-        {loans.length > 0 && (
-          <View>
-            {Array.from(
-              new Map(
-                loans.map((loan) => [
-                  loan.nom_banque,
-                  {
-                    name: loan.nom_banque,
-                    count: 0,
-                    total: 0,
-                    montantAPayer: 0,
-                  },
-                ])
-              ).entries()
-            )
-              .map(([_, bank]) => {
-                const bankLoans = loans.filter((l) => l.nom_banque === bank.name);
-                const count = bankLoans.length;
-                const total = bankLoans.reduce((sum, l) => sum + l.montant, 0);
-                const montantAPayer = bankLoans.reduce(
-                  (sum, l) => sum + l.montant * (1 + l.taux_pret / 100),
-                  0
-                );
-                return (
-                  <View key={bank.name} style={styles.bankCard}>
-                    <View style={styles.bankInfo}>
-                      <Text style={styles.bankName}>{bank.name}</Text>
-                      <View style={styles.bankStats}>
-                        <Text style={styles.bankStat}>
-                          Prêts: <Text style={styles.bankStatValue}>{count}</Text>
-                        </Text>
-                        <Text style={styles.bankStat}>
-                          Total: <Text style={styles.bankStatValue}>{formatNumber(total)}</Text> DA
-                        </Text>
-                        <Text style={styles.bankStat}>
-                          À payer:{' '}
-                          <Text style={[styles.bankStatValue, styles.bankHighlight]}>
-                            {formatNumber(montantAPayer)}
-                          </Text>
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-          </View>
-        )}
-      </View>
+      <PaymentStatsChart stats={paymentStats} title="Graphique en barres" />
     </ScrollView>
   );
 };
@@ -229,8 +95,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   loadingContainer: {
     flex: 1,
@@ -245,120 +111,76 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#999',
+    fontWeight: '700',
+    color: '#6D7F8C',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
+    color: '#93A3AF',
     marginTop: 8,
+    textAlign: 'center',
+  },
+  summaryContainer: {
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 15,
-    marginTop: 20,
   },
-  summaryContainer: {
-    marginBottom: 30,
+  sectionSubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#69808F',
   },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
+    marginTop: 18,
   },
   statCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    flex: 1,
+    minWidth: 150,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E5EEF3',
+    shadowColor: '#0B3B52',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
     elevation: 3,
-    alignItems: 'center',
+  },
+  statCardLarge: {
+    minWidth: '100%',
   },
   statLabel: {
     fontSize: 12,
-    color: '#999',
-    fontWeight: '500',
-    marginBottom: 8,
-    textAlign: 'center',
+    color: '#6E7F8D',
+    fontWeight: '700',
+    marginBottom: 12,
+    textTransform: 'uppercase',
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: Colors.light.text,
-    textAlign: 'center',
   },
   statUnit: {
-    fontSize: 10,
-    color: '#bbb',
-    marginTop: 4,
+    fontSize: 11,
+    color: '#8B9AA5',
+    marginTop: 6,
   },
   totalValue: {
-    color: '#FF6B6B',
+    color: '#0F766E',
   },
   minValue: {
-    color: '#4ECDC4',
+    color: '#F59E0B',
   },
   maxValue: {
-    color: '#45B7D1',
-  },
-  chartContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  chartWrapper: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  chart: {
-    alignSelf: 'center',
-  },
-  breakdownContainer: {
-    marginBottom: 30,
-  },
-  bankCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  bankInfo: {
-    gap: 10,
-  },
-  bankName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  bankStats: {
-    gap: 6,
-  },
-  bankStat: {
-    fontSize: 12,
-    color: '#666',
-  },
-  bankStatValue: {
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  bankHighlight: {
-    color: '#FF6B6B',
+    color: '#1D4ED8',
   },
 });

@@ -10,7 +10,10 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { Colors } from '../constants/theme';
+
+import { Colors } from '@/constants/theme';
+import { PaymentStatsChart } from '@/components/PaymentStatsChart';
+import { calculatePaymentAmount, calculatePaymentStats } from '@/utils/paymentStats';
 
 interface Loan {
   id: number;
@@ -39,15 +42,22 @@ export const LoanList: React.FC<LoanListProps> = ({
   onDelete,
   refreshing = false,
 }) => {
-  // Calculate amount to pay for each loan
   const loansWithCalculations = useMemo(
     () =>
       loans.map((loan) => ({
         ...loan,
-        montantAPayer: loan.montant * (1 + loan.taux_pret / 100),
+        montantAPayer: calculatePaymentAmount(loan),
       })),
     [loans]
   );
+
+  const paymentStats = useMemo(() => calculatePaymentStats(loans), [loans]);
+
+  const formatCurrency = (amount: number) =>
+    amount.toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   const renderLoanItem = ({ item }: { item: Loan & { montantAPayer: number } }) => {
     const formattedDate = format(new Date(item.date_pret), 'dd/MM/yyyy');
@@ -56,49 +66,42 @@ export const LoanList: React.FC<LoanListProps> = ({
       <View style={styles.loanCard}>
         <View style={styles.loanContent}>
           <View style={styles.loanHeader}>
-            <Text style={styles.clientName}>{item.nom_client}</Text>
-            <Text style={styles.accountNumber}>{item.n_compte}</Text>
+            <View>
+              <Text style={styles.clientName}>{item.nom_client}</Text>
+              <Text style={styles.accountNumber}>{item.n_compte}</Text>
+            </View>
+            <View style={styles.bankBadge}>
+              <Text style={styles.bankBadgeText}>{item.nom_banque}</Text>
+            </View>
           </View>
 
           <View style={styles.loanDetails}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Banque:</Text>
-              <Text style={styles.detailValue}>{item.nom_banque}</Text>
+              <Text style={styles.detailLabel}>Montant prêté</Text>
+              <Text style={styles.detailValue}>{formatCurrency(item.montant)} DA</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Montant:</Text>
-              <Text style={styles.detailValue}>{item.montant.toLocaleString('fr-FR')} DA</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Date:</Text>
+              <Text style={styles.detailLabel}>Date</Text>
               <Text style={styles.detailValue}>{formattedDate}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Taux:</Text>
+              <Text style={styles.detailLabel}>Taux</Text>
               <Text style={styles.detailValue}>{item.taux_pret}%</Text>
             </View>
             <View style={[styles.detailRow, styles.amountToPay]}>
-              <Text style={[styles.detailLabel, styles.amountLabel]}>Montant à Payer:</Text>
+              <Text style={[styles.detailLabel, styles.amountLabel]}>Montant à payer</Text>
               <Text style={[styles.detailValue, styles.amountValue]}>
-                {item.montantAPayer.toLocaleString('fr-FR', {
-                  minimumFractionDigits: 2,
-                })} DA
+                {formatCurrency(item.montantAPayer)} DA
               </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => onEdit(item)}
-          >
+          <TouchableOpacity style={styles.editButton} onPress={() => onEdit(item)}>
             <MaterialIcons name="edit" size={20} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => onDelete(item.id)}
-          >
+          <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(item.id)}>
             <MaterialIcons name="delete" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -117,7 +120,7 @@ export const LoanList: React.FC<LoanListProps> = ({
   if (loans.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <MaterialIcons name="folder-open" size={60} color="#ccc" />
+        <MaterialIcons name="folder-open" size={60} color="#B7C8D5" />
         <Text style={styles.emptyText}>Aucun prêt trouvé</Text>
         <Text style={styles.emptySubtext}>
           Appuyez sur &quot;Ajouter&quot; pour créer un nouveau prêt
@@ -132,17 +135,49 @@ export const LoanList: React.FC<LoanListProps> = ({
       renderItem={renderLoanItem}
       keyExtractor={(item) => item.id.toString()}
       contentContainerStyle={styles.listContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      ListFooterComponent={
+        <View style={styles.footerContainer}>
+          <View style={styles.summaryPanel}>
+            <Text style={styles.summaryTitle}>Statistiques du montant à payer</Text>
+            <Text style={styles.summarySubtitle}>
+              Résumé global affiché directement sous la liste des prêts.
+            </Text>
+
+            <View style={styles.summaryGrid}>
+              <View style={[styles.summaryCard, styles.summaryCardWide]}>
+                <Text style={styles.summaryLabel}>Montant total</Text>
+                <Text style={[styles.summaryValue, styles.totalAccent]}>
+                  {formatCurrency(paymentStats.total)} DA
+                </Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Montant minimal</Text>
+                <Text style={[styles.summaryValue, styles.minAccent]}>
+                  {formatCurrency(paymentStats.min)} DA
+                </Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Montant maximal</Text>
+                <Text style={[styles.summaryValue, styles.maxAccent]}>
+                  {formatCurrency(paymentStats.max)} DA
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <PaymentStatsChart stats={paymentStats} title="Histogramme des montants à payer" />
+        </View>
       }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     />
   );
 };
 
 const styles = StyleSheet.create({
   listContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 28,
   },
   centerContainer: {
     flex: 1,
@@ -157,95 +192,176 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#999',
+    fontWeight: '700',
+    color: '#6D7F8C',
     marginTop: 15,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
+    color: '#95A4AF',
     marginTop: 8,
     textAlign: 'center',
   },
   loanCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    marginBottom: 14,
+    shadowColor: '#0B3B52',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 5,
     overflow: 'hidden',
     flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#E7EFF5',
   },
   loanContent: {
     flex: 1,
-    padding: 15,
+    padding: 18,
   },
   loanHeader: {
-    marginBottom: 10,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   clientName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.light.text,
     marginBottom: 4,
   },
   accountNumber: {
     fontSize: 12,
-    color: '#999',
-    fontWeight: '500',
+    color: '#7A8B98',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  bankBadge: {
+    backgroundColor: '#E7F2FF',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  bankBadgeText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '800',
   },
   loanDetails: {
-    gap: 8,
+    gap: 10,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 16,
   },
   detailLabel: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  detailValue: {
-    fontSize: 12,
-    color: Colors.light.text,
+    fontSize: 13,
+    color: '#6E7F8D',
     fontWeight: '600',
   },
+  detailValue: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
   amountToPay: {
-    backgroundColor: '#f0f8ff',
-    borderRadius: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    marginTop: 4,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 8,
   },
   amountLabel: {
-    color: '#1976d2',
+    color: '#0F766E',
   },
   amountValue: {
-    color: '#1976d2',
-    fontSize: 14,
+    color: '#0F766E',
+    fontSize: 15,
   },
   actionButtons: {
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 18,
     borderLeftWidth: 1,
-    borderLeftColor: '#f0f0f0',
+    borderLeftColor: '#E7EFF5',
+    backgroundColor: '#F8FBFD',
   },
   editButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 20,
-    padding: 10,
-    marginBottom: 8,
+    backgroundColor: '#1D4ED8',
+    borderRadius: 16,
+    padding: 11,
+    marginBottom: 10,
   },
   deleteButton: {
-    backgroundColor: '#f44336',
-    borderRadius: 20,
-    padding: 10,
+    backgroundColor: '#DC2626',
+    borderRadius: 16,
+    padding: 11,
+  },
+  footerContainer: {
+    marginTop: 10,
+  },
+  summaryPanel: {
+    marginTop: 6,
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: '#F4FAF8',
+    borderWidth: 1,
+    borderColor: '#DCEFE7',
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  summarySubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6D817D',
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 16,
+  },
+  summaryCard: {
+    flex: 1,
+    minWidth: 150,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+  },
+  summaryCardWide: {
+    minWidth: '100%',
+  },
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#70828D',
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  totalAccent: {
+    color: '#0F766E',
+  },
+  minAccent: {
+    color: '#F59E0B',
+  },
+  maxAccent: {
+    color: '#1D4ED8',
   },
 });

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, SafeAreaView, StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { View, SafeAreaView, StyleSheet, Text } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useLoans, useStatistics } from '@/hooks/useLoans';
